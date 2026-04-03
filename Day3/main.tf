@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 
-resource "aws_intance" "sarahinstance" {
+resource "aws_instance" "wamweainstance" {
     ami = "ami-0aaa636894689fa47"
-    intsnace_type = "t3.micro"
+    instance_type = "t3.micro"
 }

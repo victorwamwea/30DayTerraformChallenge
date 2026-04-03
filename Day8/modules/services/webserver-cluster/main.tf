@@ -1,10 +1,6 @@
-#Clustered Web Server Code
 provider "aws" {
   region = var.region
 }
-
-# Fetch available availability zones
-data "aws_availability_zones" "all" {}
 
 # Fetch default VPC
 data "aws_vpc" "default" {
@@ -20,9 +16,9 @@ data "aws_subnets" "default" {
 }
 
 # Security group for EC2 instances
-resource "aws_security_group" "web_sg" {
-  name        = "day4-asg-sg"
-  description = "Allow HTTP to EC2 instances"
+resource "aws_security_group" "instance_sg" {
+  name        = "${var.cluster_name}-instance-sg"
+  description = "Allow HTTP traffic to EC2 instances"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -38,12 +34,16 @@ resource "aws_security_group" "web_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "${var.cluster_name}-instance-sg"
+  }
 }
 
 # Security group for ALB
 resource "aws_security_group" "alb_sg" {
-  name        = "day4-alb-sg"
-  description = "Allow HTTP to ALB"
+  name        = "${var.cluster_name}-alb-sg"
+  description = "Allow HTTP traffic to ALB"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -59,14 +59,18 @@ resource "aws_security_group" "alb_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "${var.cluster_name}-alb-sg"
+  }
 }
 
 # Launch Template
 resource "aws_launch_template" "web" {
-  name_prefix            = "day4-web-"
+  name_prefix            = "${var.cluster_name}-"
   image_id               = var.ami
   instance_type          = var.instance_type
-  vpc_security_group_ids = [aws_security_group.web_sg.id]
+  vpc_security_group_ids = [aws_security_group.instance_sg.id]
 
   user_data = base64encode(<<-EOF
 #!/bin/bash
@@ -74,18 +78,22 @@ dnf update -y
 dnf install -y httpd
 systemctl start httpd
 systemctl enable httpd
-echo "<h1>Hello from Terraform Challenge! Instance $(hostname)</h1>" > /var/www/html/index.html
+echo "<h1>Hello from ${var.cluster_name}! Instance $(hostname)</h1>" > /var/www/html/index.html
 EOF
   )
+
+  tags = {
+    Name = "${var.cluster_name}-launch-template"
+  }
 }
 
 # Auto Scaling Group
 resource "aws_autoscaling_group" "web" {
-  name                = "day4-asg"
+  name                = "${var.cluster_name}-asg"
   vpc_zone_identifier = data.aws_subnets.default.ids
-  min_size            = 2
-  max_size            = 5
-  desired_capacity    = 2
+  min_size            = var.min_size
+  max_size            = var.max_size
+  desired_capacity    = var.min_size
   target_group_arns   = [aws_lb_target_group.web.arn]
   health_check_type   = "ELB"
 
@@ -96,23 +104,27 @@ resource "aws_autoscaling_group" "web" {
 
   tag {
     key                 = "Name"
-    value               = "wamwea"
+    value               = "${var.cluster_name}-instance"
     propagate_at_launch = true
   }
 }
 
 # Application Load Balancer
 resource "aws_lb" "web" {
-  name               = "day4-alb"
+  name               = "${var.cluster_name}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = data.aws_subnets.default.ids
+
+  tags = {
+    Name = "${var.cluster_name}-alb"
+  }
 }
 
 # Target Group
 resource "aws_lb_target_group" "web" {
-  name     = "day4-tg"
+  name     = "${var.cluster_name}-tg"
   port     = var.server_port
   protocol = "HTTP"
   vpc_id   = data.aws_vpc.default.id
@@ -123,6 +135,10 @@ resource "aws_lb_target_group" "web" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
     interval            = 10
+  }
+
+  tags = {
+    Name = "${var.cluster_name}-tg"
   }
 }
 
@@ -136,9 +152,4 @@ resource "aws_lb_listener" "web" {
     type             = "forward"
     target_group_arn = aws_lb_target_group.web.arn
   }
-}
-
-# Output ALB DNS
-output "alb_dns_name" {
-  value       = aws_lb.web.dns_name
 }

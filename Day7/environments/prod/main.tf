@@ -6,7 +6,7 @@ provider "aws" {
 data "terraform_remote_state" "staging" {
   backend = "s3"
   config = {
-    bucket = "sarahcodes-terraform-state-2026"
+    bucket = "wamwea_bucket"
     key    = "environments/staging/terraform.tfstate"
     region = "eu-north-1"
   }

@@ -7,5 +7,5 @@ variable "region" {
 variable "day6-s3-bucket" {
     description = "The S3 bucket name for the day6 resource"
     type = string
-    default = "sarahcodes-terraform-state-2026"
+    default = "wamwea_bucket"
 }
