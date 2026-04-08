@@ -1,0 +1,62 @@
+
+
+# Webserver Cluster Module
+
+A reusable Terraform module that provisions a highly available web server cluster on AWS. It uses an **Auto Scaling Group (ASG)** to manage instances and an **Application Load Balancer (ALB)** to distribute traffic across them.
+
+
+
+## Usage
+
+hcl
+module "webserver_cluster" {
+  source = "../../modules/services/webserver-cluster"
+
+  cluster_name  = "webservers-dev"
+  instance_type = "t3.micro"
+  min_size      = 2
+  max_size      = 4
+}
+
+
+
+
+## Inputs Explained
+
+This module requires a few key variables to control how the infrastructure is deployed.
+
+ **cluster_name**
+  This is the name prefix used for all resources created by the module. It helps identify and group related resources in AWS. This value must be provided.
+
+ **instance_type**
+  Defines the EC2 instance type used in the Auto Scaling Group. If not specified, it defaults to `t3.micro`, which is suitable for development or low-traffic environments.
+
+ **min_size**
+  The minimum number of EC2 instances that should always be running in the Auto Scaling Group. This ensures availability even during low traffic.
+
+ **max_size**
+  The maximum number of instances the Auto Scaling Group can scale up to during high demand.
+
+ **server_port**
+  The port on which the web server listens. By default, this is set to port 80 for standard HTTP traffic.
+ **ami**
+  The Amazon Machine Image (AMI) used to launch instances. A default AMI is provided, but this can be overridden if needed.
+
+ **region**
+  Specifies the AWS region where resources will be deployed. If not set, it defaults to `eu-north-1`.
+
+---
+
+## Outputs Explained
+
+After deployment, the module exposes several outputs that are useful for accessing and integrating the infrastructure.
+
+ **alb_dns_name**
+  This is the public DNS name of the Application Load Balancer. It is the main endpoint used to access the web application.
+
+ **asg_name**
+  The name of the Auto Scaling Group managing the EC2 instances. This is useful for monitoring and scaling operations.
+
+**alb_arn**
+  The Amazon Resource Name (ARN) of the load balancer. This can be used when integrating with other AWS services or for advanced configurations.
+

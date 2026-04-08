@@ -1,0 +1,250 @@
+
+# Day 10: Terraform Loops & Conditionals — Dynamic Infrastructure
+
+## Overview
+
+On Day 10, I refactored my Terraform code to eliminate repetition and make the infrastructure more dynamic and scalable. I implemented Terraform loop constructs (`count`, `for_each`, `for` expressions) and conditional logic to control resource creation and configuration.
+
+I also enhanced the webserver cluster module by introducing an autoscaling toggle and environment-based configuration.
+
+---
+
+## Project Structure
+
+```
+day10/
+├── live/
+│   ├── global/iam/                  # Loop and conditional demos
+│   ├── dev/services/webserver-cluster/        # Autoscaling disabled
+│   └── production/services/webserver-cluster/ # Autoscaling enabled
+└── modules/services/webserver-cluster/        # Refactored module
+```
+
+---
+
+## count Example
+
+The `count` meta-argument creates multiple instances of a resource.
+
+```hcl
+resource "aws_iam_user" "count_example" {
+  count = 3
+  name  = "wamweacodes-user-${count.index}"
+}
+```
+
+This creates:
+
+ wamwea-user-0
+ wamwea-user-1
+ wamwea-user-2
+
+### Limitation of count
+
+When used with lists, `count` relies on index positions, which can cause unintended changes.
+
+hcl
+variable "user_names" {
+  type    = list(string)
+  default = ["alice", "bob", "charlie"]
+}
+
+resource "aws_iam_user" "list_example" {
+  count = length(var.user_names)
+  name  = var.user_names[count.index]
+}
+
+If `"alice"` is removed:
+
+* `bob` is reassigned to index 0 → renamed
+* `charlie` is reassigned to index 1 → renamed
+* last resource is destroyed
+
+This leads to unexpected updates and deletions.
+
+
+## for_each Example
+
+`for_each` uses stable keys instead of indexes, making it safer.
+
+### Using a Set
+
+hcl
+variable "safe_user_names" {
+  type    = set(string)
+  default = ["dave", "eve", "frank"]
+}
+
+resource "aws_iam_user" "foreach_set_example" {
+  for_each = var.safe_user_names
+  name     = each.value
+}
+
+
+Removing `"dave"` only deletes that specific resource.
+
+
+
+### Using a Map
+
+hcl
+variable "users" {
+  type = map(object({
+    department = string
+    admin      = bool
+  }))
+
+  default = {
+    grace = { department = "engineering", admin = true }
+    henry = { department = "marketing",   admin = false }
+    iris  = { department = "devops",      admin = true }
+  }
+}
+
+resource "aws_iam_user" "foreach_map_example" {
+  for_each = var.users
+  name     = each.key
+
+  tags = {
+    Department = each.value.department
+    Admin      = each.value.admin
+  }
+}
+```
+
+* `each.key` → username
+* `each.value` → attributes
+
+
+
+## for Expressions
+
+Used to transform data structures.
+
+hcl
+output "upper_names" {
+  value = [for name in var.user_names : upper(name)]
+}
+
+Result:
+
+["ALICE", "BOB", "CHARLIE"]
+
+### Mapping Outputs
+hcl
+output "user_arns" {
+  value = {
+    for name, user in aws_iam_user.foreach_map_example :
+    name => user.arn
+  }
+}
+
+
+
+
+Conditional Logic
+
+Autoscaling Toggle
+
+hcl
+variable "enable_autoscaling" {
+  type    = bool
+  default = true
+}
+
+
+hcl
+resource "aws_autoscaling_policy" "scale_out" {
+  count = var.enable_autoscaling ? 1 : 0
+  
+}
+
+resource "aws_autoscaling_policy" "scale_in" {
+  count = var.enable_autoscaling ? 1 : 0
+  
+}
+
+
+### Behavior
+
+* **Dev (false):** No autoscaling resources created
+* **Production (true):** Autoscaling enabled
+
+---
+
+## Environment-Based Configuration
+
+```hcl
+variable "environment" {
+  type    = string
+  default = "dev"
+}
+```
+
+```hcl
+locals {
+  instance_type = var.environment == "production" ? "t3.small" : "t3.micro"
+}
+```
+
+---
+
+## Module Enhancements
+
+* Added autoscaling policies using conditional logic
+* Introduced `enable_autoscaling` variable
+* Added `environment` variable for flexible configuration
+* Created outputs for better visibility:
+
+  * `autoscaling_policy_arns`
+  * `instance_type_used`
+
+---
+
+## count vs for_each
+
+### Use count when:
+
+* Creating a fixed number of identical resources
+* Toggling resources on/off
+* Order does not matter
+
+### Use for_each when:
+
+* Managing collections of unique resources
+* Items may be added or removed
+* Resource identity matters
+
+---
+
+## Key Takeaways
+
+* `count` is simple but can be risky with changing lists
+* `for_each` provides stable resource management
+* `for` expressions simplify data transformations
+* Conditional logic enables flexible infrastructure design
+
+---
+
+## Accessing Resources
+
+```hcl
+# count
+aws_iam_user.example[0].arn
+
+# for_each
+aws_iam_user.foreach_map_example["grace"].arn
+```
+
+---
+
+## Summary
+
+This refactor improved:
+
+* Scalability
+* Maintainability
+* Predictability
+
+Using loops and conditionals in Terraform makes infrastructure more adaptable to real-world changes.
+
