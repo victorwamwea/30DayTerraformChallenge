@@ -1,0 +1,49 @@
+provider "aws" {
+  region = "eu-north-1"
+}
+
+terraform {
+  backend "s3" {
+    bucket         = "wamwea_bucket"
+    key            = "day11/dev/services/webserver-cluster/terraform.tfstate"
+    region         = "eu-north-1"
+    dynamodb_table = "wamwea_terraform_locks"
+    encrypt        = true
+  }
+}
+
+variable "environment" {
+  description = "Deployment environment passed through to module validation"
+  type        = string
+  default     = "dev"
+}
+
+module "webserver_cluster" {
+  source = "../../../../modules/services/webserver-cluster"
+
+  cluster_name               = "webservers-dev"
+  instance_type              = "t3.micro"
+  environment                = var.environment
+  enable_autoscaling         = false
+  enable_detailed_monitoring = false
+}
+
+output "alb_dns_name" {
+  value = module.webserver_cluster.alb_dns_name
+}
+
+output "instance_type_used" {
+  value = module.webserver_cluster.instance_type_used
+}
+
+output "min_size_used" {
+  value = module.webserver_cluster.min_size_used
+}
+
+output "max_size_used" {
+  value = module.webserver_cluster.max_size_used
+}
+
+output "cloudwatch_alarm_arn" {
+  value = module.webserver_cluster.cloudwatch_alarm_arn
+}
