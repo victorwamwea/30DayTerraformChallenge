@@ -27,7 +27,7 @@ func TestWebserverClusterIntegration(t *testing.T) {
 			"max_size":       2,
 			"environment":    "dev",
 			"project_name":   "terratest",
-			"team_name":      "sarahcodes",
+			"team_name":      "wamwea",
 			"db_secret_name": "day13/db/credentials",
 		},
 	})
